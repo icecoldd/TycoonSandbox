@@ -47,6 +47,17 @@ game.Players.PlayerAdded:Connect(function(player)
                     return
                 end
 
+                local Price = Button:GetAttribute("price")
+
+                if Price then
+                    if player.leaderstats.Cash.Value < Price then
+                        warn('You cannot afford this item!')
+                        return
+                    end
+                    player.leaderstats.Cash.Value -= Price
+                    print('Item purchased for: ' .. player.Name .. ' - ' .. Price)
+                end
+
                 for _, item in TemplateItems:GetChildren() do
                     if item:GetAttribute("id") ~= itemToUnlock then continue end
                     -- found correct item
