@@ -40,6 +40,16 @@ game.Players.PlayerAdded:Connect(function(player)
         
                 if plot:GetAttribute("Owner") ~= player.UserId then return end
 
+                if Button:GetAttribute("Debounce") then return end 
+
+                Button:SetAttribute("Debounce", true) -- prevent multiple clicks
+                
+                task.delay(2, function()
+                    if Button then
+                        Button:SetAttribute("Debounce", false) -- reset debounce after 2 seconds
+                    end
+                end)
+
                 -- TODO: remove currency / check enough currency
                 local itemToUnlock = Button:GetAttribute("idOfItemToUnlock")
                 if not itemToUnlock then
@@ -85,6 +95,7 @@ game.Players.PlayerAdded:Connect(function(player)
 
                     itemClone.Parent = ItemsFolder
                     Button:Destroy() -- remove the button after unlocking the item
+                    itemClone:SetAttribute("Unlocked", true) -- mark the item as unlocked
                 end
             end)
 
