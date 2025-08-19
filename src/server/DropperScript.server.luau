@@ -1,76 +1,63 @@
-local CollectionService = game:GetService("CollectionService")
-local DropperTemplate = game.ServerStorage:WaitForChild("DropperTemplate")
-local TAG = "Dropper"
+local ServerStorage = game:GetService("ServerStorage")
+local DropperTemplate = ServerStorage:WaitForChild("DropperTemplate")
+local PlotsFolder = workspace:WaitForChild("Plots")
 
--- Debounce tables keyed by dropper MODEL
-local active = {}     -- model -> true if a loop is running
-local watched = {}    -- model -> true if we've attached the Unlocked listener
+-- Start a spawner loop for ONE dropper, only once
+local function setupDropper(dropper: Instance)
+	if dropper:GetAttribute("SpawnerStarted") then return end
+	dropper:SetAttribute("SpawnerStarted", true)
 
-local function getModelFromTagged(inst)
-	if inst:IsA("Model") then return inst end
-	if inst:IsA("BasePart") then return inst.Parent end
-	return nil
-end
+	-- Wait (with timeout) for required children on this dropper
+	local drop = dropper:WaitForChild("Drop", 10)
+	local dropperParts = dropper:WaitForChild("DropperParts", 10)
+	if not drop or not dropperParts then
+		warn(("Dropper %s missing Drop or DropperParts"):format(dropper.Name))
+		return
+	end
 
-local function startDroppingFrom(part)
-	local model = part.Parent
-	if not model then return end
-	if active[model] then return end  -- ✅ prevents double loops per model
-	active[model] = true
-
+	-- Run the spawn loop in its own thread so we don't block setup of other droppers
 	task.spawn(function()
-		while task.wait(2) do
-			if not model or model:GetAttribute("Unlocked") ~= true then
-				active[model] = nil
-				break
-			end
+		while dropper.Parent do
+			local newDrop = DropperTemplate:Clone()
+			newDrop.CFrame = drop.CFrame - Vector3.new(0, 2, 0)
+			newDrop:SetAttribute("CashToGive", dropper:GetAttribute("CashPerDrop") or 0)
+			newDrop.Parent = dropperParts
 
-			local drop = DropperTemplate:Clone()
-			drop.Parent = model:FindFirstChild("DropperParts") or model
-			drop:SetAttribute("CashToGive", model:GetAttribute("CashPerDrop"))
-
-			local cf = part.CFrame * CFrame.new(0, 2, 0)
-			if drop:IsA("BasePart") then
-				drop.CFrame = cf
-				drop.Anchored = false
-			else
-				drop:PivotTo(cf)
-				for _, d in ipairs(drop:GetDescendants()) do
-					if d:IsA("BasePart") then d.Anchored = false end
-				end
-			end
+			task.wait(2) -- spawn rate
 		end
 	end)
 end
 
-local function watchModelForUnlock(part)
-	local model = part.Parent
-	if not model or watched[model] then return end
-	watched[model] = true  -- ✅ only one listener per model
-
-	-- Start now if already unlocked
-	if model:GetAttribute("Unlocked") == true then
-		startDroppingFrom(part)
+-- Prepare a plot when it becomes available
+local function setupPlot(plot: Instance)
+	-- Items might arrive later; wait briefly
+	local items = plot:WaitForChild("Items", 10)
+	if not items then
+		warn("No Items folder found in plot: " .. plot.Name)
+		return
 	end
 
-	-- Start later when Unlocked flips true
-	model:GetAttributeChangedSignal("Unlocked"):Connect(function()
-		if model:GetAttribute("Unlocked") == true then
-			startDroppingFrom(part)
+	-- Handle existing droppers in this plot
+	for _, child in items:GetChildren() do
+		if child.Name == "Dropper" then
+			setupDropper(child)
+		end
+	end
+
+	-- Handle droppers added later to this plot
+	items.ChildAdded:Connect(function(child)
+		if child.Name == "Dropper" then
+			setupDropper(child)
 		end
 	end)
 end
 
--- Handle existing tagged instances at startup
-for _, inst in ipairs(CollectionService:GetTagged(TAG)) do
-	if inst:IsA("BasePart") and inst.Parent then
-		watchModelForUnlock(inst)
-	end
+-- Handle plots already present (if any)
+for _, plot in PlotsFolder:GetChildren() do
+	setupPlot(plot)
 end
 
--- Handle future tagged instances
-CollectionService:GetInstanceAddedSignal(TAG):Connect(function(inst)
-	if inst:IsA("BasePart") and inst.Parent then
-		watchModelForUnlock(inst)
-	end
+-- Handle plots that appear later (e.g., after assignment)
+PlotsFolder.ChildAdded:Connect(function(plot)
+	setupPlot(plot)
 end)
