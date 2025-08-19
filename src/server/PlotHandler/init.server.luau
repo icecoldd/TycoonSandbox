@@ -2,7 +2,59 @@ local Plots = game.Workspace.Plots
 
 local TemplatePlot = game.Workspace.TemplatePlot
 
-game.Players.PlayerAdded:Connect(function(player)
+local function getPlot(player)
+    for _, plot in Plots:GetChildren() do
+        local owner = plot:GetAttribute("Owner")
+        if not owner then continue end
+        if owner ~= player.UserId then continue end
+        return plot -- found the plot for the player
+    end
+    return nil -- No plot found for the player
+end
+
+local function getItemFromTemplatePlot(itemId)
+    for _, item in TemplatePlot.Items:GetChildren() do
+        if item:GetAttribute("id") == itemId then
+            return item
+        end
+    end
+    return nil -- Item not found
+end
+
+local function loadItems(player, itemIdsTable)
+    local plot = getPlot(player)
+
+    for _, itemId in itemIdsTable do
+        local item = getItemFromTemplatePlot(itemId)
+        if not item then continue end
+
+        local itemClone = item:Clone()
+        local itemCFrame 
+
+                    if itemClone:IsA('Model') then
+                        itemCFrame = itemClone:GetPivot() -- model
+                    elseif itemClone:IsA('BasePart') then
+                        itemCFrame = itemClone.CFrame
+                    else
+                        warn('Item is not a model or part: ' .. item.Name)
+                        return
+                    end
+
+                    local relativeItemCFrame = TemplatePlot.CFrame:toObjectSpace(itemCFrame)
+                    local worldCFrameOfNewPlot = plot.CFrame:ToWorldSpace(relativeItemCFrame)
+
+                    if itemClone:IsA('Model') then
+                        itemClone:PivotTo(worldCFrameOfNewPlot)
+                    elseif itemClone:IsA('BasePart') then
+                        itemClone.CFrame = worldCFrameOfNewPlot
+                    end
+
+                    itemClone.Parent = plot.Items -- Parent the cloned item to the plot's Items folder
+        
+    end
+end
+
+script:WaitForChild('CreatePlot').Event:Connect(function(player, itemIdsTable)
     -- Get a plot for the player
     
     -- Cycle through all existing plots in Plots folder
@@ -27,12 +79,19 @@ game.Players.PlayerAdded:Connect(function(player)
         local TemplateButtons = TemplatePlot.Buttons:Clone()
         local TemplateItems = TemplatePlot.Items
 
+        loadItems(player, itemIdsTable)
+
         for _, Button in TemplateButtons:GetChildren() do
+            -- Check if the item is already unlocked
+            if table.find(itemIdsTable, Button:GetAttribute('idOfItemToUnlock')) then 
+                continue
+            end
             -- Get the pos of the button relative to the template plot
             -- In other words, how far away is the button from the center of the template plot (20,30)
             local RelativeCFrame = TemplatePlot.CFrame:toObjectSpace(Button.CFrame)
             -- Set the button's CFrame in the same relative position as it is in the template plot, but using the current plot's CFrame
             Button.CFrame = plot.CFrame:ToWorldSpace(RelativeCFrame)
+
 
             Button.Touched:Connect(function(hit)
                 local player = game.Players:GetPlayerFromCharacter(hit.Parent)
@@ -93,9 +152,16 @@ game.Players.PlayerAdded:Connect(function(player)
                         itemClone.CFrame = worldCFrameOfNewPlot
                     end
 
+                    for _, scriptObject in itemClone:GetDescendants() do
+                        if scriptObject:IsA('BaseScript') then
+                            scriptObject.Enabled = true -- Enable scripts in the cloned item
+                        end
+                    end
+
                     itemClone.Parent = ItemsFolder
                     Button:Destroy() -- remove the button after unlocking the item
                     itemClone:SetAttribute("Unlocked", true) -- mark the item as unlocked
+                    game.ServerScriptService.Server.Data.ItemUnlocked:Fire(player, itemToUnlock)
                 end
             end)
 
