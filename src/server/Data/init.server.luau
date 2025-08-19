@@ -3,7 +3,6 @@ local ProfileService = require(script:WaitForChild('ProfileService'))
 local ProfileTemplate = {
     Cash = 0, -- Default cash amount
     Items = {}, -- Table to hold items owned by the player
-
 }
 
 local ProfileStore = ProfileService.GetProfileStore(
@@ -59,6 +58,8 @@ game.Players.PlayerAdded:Connect(function(player)
     cash:GetPropertyChangedSignal('Value'):Connect(function()
         profile.Data.Cash = cash.Value -- Update the profile data when cash changes
     end)
+
+    game.ServerScriptService.Server:WaitForChild('PlotHandler'):WaitForChild('CreatePlot'):Fire(player, profile.Data.Items)
 end)
 
 game.Players.PlayerRemoving:Connect(function(player)
@@ -71,3 +72,8 @@ end)
 for _, player in game.Players:GetPlayers() do
     task.spawn(playerAdded, player)
 end
+
+script:WaitForChild('ItemUnlocked').Event:Connect(function(player, itemId)
+    local profile = Profiles[player]
+    table.insert(profile.Data.Items, itemId) -- Add the item to the player's profile
+end)

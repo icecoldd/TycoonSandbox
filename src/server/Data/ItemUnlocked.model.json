@@ -1,0 +1,7 @@
+{
+    "className": "BindableEvent",
+    "properties": {
+        "Name": "ItemUnlocked",
+        "Tags" : ["Server"]
+    }
+}
