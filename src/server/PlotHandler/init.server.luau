@@ -12,6 +12,20 @@ local function getPlot(player)
     return nil -- No plot found for the player
 end
 
+local function getButtonByIdOfItemToUnlock(player, itemId)
+    local plot = getPlot(player)
+    if not plot then return end 
+    for _, button in plot.Buttons:GetChildren() do
+        local idOfItemToUnlock = button:GetAttribute("idOfItemToUnlock")
+        if idOfItemToUnlock then
+            if idOfItemToUnlock == itemId then 
+                return button
+            end
+        end
+    end
+    return nil
+end
+
 local function getItemFromTemplatePlot(itemId)
     for _, item in TemplatePlot.Items:GetChildren() do
         if item:GetAttribute("id") == itemId then
@@ -92,8 +106,16 @@ script:WaitForChild('CreatePlot').Event:Connect(function(player, itemIdsTable)
             -- Set the button's CFrame in the same relative position as it is in the template plot, but using the current plot's CFrame
             Button.CFrame = plot.CFrame:ToWorldSpace(RelativeCFrame)
 
+            if Button:GetAttribute("Hidden") then
+                Button.Transparency = 1 -- make the button invisible
+                Button.CanCollide = false -- disable collision
+                Button.BillboardGui.Enabled = false -- disable the billboard GUI
+            end
+
 
             Button.Touched:Connect(function(hit)
+                if Button:GetAttribute("Hidden") then return end -- if the button is hidden, do not allow interaction
+
                 local player = game.Players:GetPlayerFromCharacter(hit.Parent)
                 if not player then return end
         
@@ -125,6 +147,24 @@ script:WaitForChild('CreatePlot').Event:Connect(function(player, itemIdsTable)
                     end
                     player.leaderstats.Cash.Value -= Price
                     print('Item purchased for: ' .. player.Name .. ' - ' .. Price)
+                end
+
+                local itemIdsToAppearOnceBought = Button:GetAttribute("itemIdsToAppearOnceBought")
+                if itemIdsToAppearOnceBought then
+                    -- Load additional items that should appear once this item is bought
+                    local itemIds = string.split(itemIdsToAppearOnceBought, ",")
+                    
+                    for _, itemId in itemIds do
+                        itemId = tonumber(itemId) -- convert to number
+
+                        local Button = getButtonByIdOfItemToUnlock(player, itemId)
+                        if not Button then continue end
+                        
+                        Button:SetAttribute("Hidden", false)
+                        Button.Transparency = 0 -- make the button visible
+                        Button.BillboardGui.Enabled = true -- enable the billboard GUI
+                        Button.CanCollide = true -- enable collision
+                    end
                 end
 
                 for _, item in TemplateItems:GetChildren() do
@@ -168,6 +208,30 @@ script:WaitForChild('CreatePlot').Event:Connect(function(player, itemIdsTable)
             Button.Parent = TemplateButtons
         end
         TemplateButtons.Parent = plot
+        
+        for _, Button in TemplateButtons:GetChildren() do
+            if table.find(itemIdsTable, Button:GetAttribute('idOfItemToUnlock')) then 
+                local itemIdsToAppearOnceBought = Button:GetAttribute("itemIdsToAppearOnceBought")
+
+                if itemIdsToAppearOnceBought then
+                    -- Load additional items that should appear once this item is bought
+                    local itemIds = string.split(itemIdsToAppearOnceBought, ",")
+                    
+                    for _, itemId in itemIds do
+                        itemId = tonumber(itemId) -- convert to number
+
+                        local Button = getButtonByIdOfItemToUnlock(player, itemId)
+                        if not Button then continue end
+                        
+                        Button:SetAttribute("Hidden", false)
+                        Button.Transparency = 0 -- make the button visible
+                        Button.BillboardGui.Enabled = true -- enable the billboard GUI
+                        Button.CanCollide = true -- enable collision
+                    end
+                end
+                continue
+            end
+        end
 
         break
     end
