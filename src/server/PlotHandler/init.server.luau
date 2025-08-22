@@ -112,6 +112,7 @@ script:WaitForChild('CreatePlot').Event:Connect(function(player, itemIdsTable)
                 Button.BillboardGui.Enabled = false -- disable the billboard GUI
             end
 
+            Button.BillboardGui.TextLabel.Text = getItemFromTemplatePlot(Button:GetAttribute("idOfItemToUnlock")).Name or "???"
 
             Button.Touched:Connect(function(hit)
                 if Button:GetAttribute("Hidden") then return end -- if the button is hidden, do not allow interaction
